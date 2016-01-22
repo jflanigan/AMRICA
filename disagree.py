@@ -31,6 +31,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 import os
 import pygraphviz as pgz
+from collections import defaultdict
 
 # internal libraries
 from compare_smatch import amr_metadata
@@ -39,6 +40,7 @@ from compare_smatch.amr_alignment import Amr2AmrAligner
 from compare_smatch.amr_alignment import default_aligner
 from compare_smatch.smatch_graph import SmatchGraph
 from smatch import smatch
+from scripts import smatch_stats
 
 cur_sent_id = 0
 
@@ -195,11 +197,13 @@ def monolingual_main(args):
           align_fh.write('\n'.join(sg.get_text_alignments()) + '\n\n')
         if (args.verbose):
           print("  annotator %s score: %d" % (test_anno, score))
+        smatch_stats.analyze(g)
 
-        ag = nx.to_agraph(g)
-        ag.graph_attr['label'] = sent
-        ag.layout(prog=args.layout)
-        ag.draw('%s/%s_annotated_%s_%s.png' % (args.outdir, cur_id, gold_anno, test_anno))
+        if args.outdir != None:
+          ag = nx.to_agraph(g)
+          ag.graph_attr['label'] = sent
+          ag.layout(prog=args.layout)
+          ag.draw('%s/%s_annotated_%s_%s.png' % (args.outdir, cur_id, gold_anno, test_anno))
 
       amrs_same_sent = []
       if cur_amr is not None:
@@ -209,6 +213,7 @@ def monolingual_main(args):
 
     amrs_same_sent.append(cur_amr)
 
+  smatch_stats.print_proportions()
   infile.close()
   gold_aligned_fh and gold_aligned_fh.close()
   close_output_files(json_fh, align_fh)
@@ -250,10 +255,11 @@ def xlang_main(args):
     if (args.verbose):
       print("ID: %s\n Sentence: %s\n Sentence: %s\n Score: %f" % (cur_id, src_sent, tgt_sent, amr_graphs[0][1]))
 
-    ag = nx.to_agraph(amr_graphs[0][0])
-    ag.graph_attr['label'] = "%s\n%s" % (src_sent, tgt_sent)
-    ag.layout(prog=args.layout)
-    ag.draw('%s/%s.png' % (args.outdir, cur_id))
+    if args.outdir != None:
+      ag = nx.to_agraph(amr_graphs[0][0])
+      ag.graph_attr['label'] = "%s\n%s" % (src_sent, tgt_sent)
+      ag.layout(prog=args.layout)
+      ag.draw('%s/%s.png' % (args.outdir, cur_id))
 
   src_amr_fh.close()
   tgt_amr_fh.close()
@@ -306,12 +312,13 @@ if __name__ == '__main__':
   if not args.num_align_read:
     args.num_align_read = args.num_aligned_in_file
 
-  if not os.path.exists(args.outdir):
-    os.makedirs(args.outdir)
+  if not args.outdir == None:
+    if not os.path.exists(args.outdir):
+      os.makedirs(args.outdir)
 
   if (args.bitext):
     xlang_main(args)
   else:
-    if args.infile == None or args.outdir == None:
-      raise parser.error("Both --infile and --outdir are required flags.")
+    if args.infile == None:
+      raise parser.error("--infile is a required flag.")
     monolingual_main(args)
